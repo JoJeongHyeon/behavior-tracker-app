@@ -1,36 +1,39 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 행동 트래커
 
-## Getting Started
+하루 단위 행동을 기록하고 다시 보는 개인용 웹앱입니다. 몸무게, 식단, 운동, 공부, 시쓰기, 책읽기를 먼저 `예/아니오`로 고른 뒤 필요한 항목만 입력합니다.
 
-First, run the development server:
+## 기술 스택
+
+- Next.js + React + TypeScript
+- Tailwind CSS
+- Supabase Auth + Database
+- Motion for React
+- Vercel 배포
+- Pretendard 폰트
+
+## 실행
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+브라우저에서 `http://localhost:3000`을 엽니다.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Supabase 연결
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Supabase 프로젝트를 새로 만듭니다.
+2. `supabase/schema.sql` 내용을 Supabase SQL Editor에서 실행합니다.
+3. `.env.example`을 참고해서 `.env.local`을 만듭니다.
+4. 아래 값을 채웁니다.
 
-## Learn More
+```bash
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+```
 
-To learn more about Next.js, take a look at the following resources:
+환경변수가 없으면 앱은 브라우저 임시 저장 모드로 열립니다. 이 모드는 테스트용이며 모바일과 PC 동기화는 되지 않습니다.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 배포
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Vercel에서 이 저장소를 연결하고 Supabase 환경변수를 등록합니다. 도메인을 구매하지 않으면 Vercel 기본 주소로 사용할 수 있습니다.
