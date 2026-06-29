@@ -144,35 +144,35 @@ export function TrackerApp() {
 
     if (lower.includes("email not confirmed")) {
       return {
-        title: "메일 인증이 아직 안 됐어",
-        message: "받은 메일함에서 인증 링크를 누른 뒤 다시 로그인해줘.",
+        title: "메일 인증이 아직 완료되지 않았습니다",
+        message: "받은 메일함에서 인증 링크를 누른 뒤 다시 로그인해 주세요.",
       };
     }
 
     if (lower.includes("invalid login credentials")) {
       return {
         title: "이메일이나 비밀번호가 맞지 않아",
-        message: "오타가 없는지 보고 다시 시도해줘.",
+        message: "오타가 없는지 확인한 뒤 다시 시도해 주세요.",
       };
     }
 
     if (lower.includes("rate limit") || lower.includes("too many")) {
       return {
-        title: "잠깐 쉬었다가 다시 해보자",
-        message: "메일 요청이 너무 빠르게 반복됐을 수 있어. 1분 뒤 다시 시도해줘.",
+        title: "잠시 후 다시 시도해 주세요",
+        message: "메일 요청이 너무 빠르게 반복됐을 수 있습니다. 1분 뒤 다시 시도해 주세요.",
       };
     }
 
     if (lower.includes("already registered") || lower.includes("already exists")) {
       return {
         title: "이미 가입된 이메일일 수 있어",
-        message: "로그인으로 바꿔서 들어가 보자.",
+        message: "로그인으로 전환해 다시 시도해 주세요.",
       };
     }
 
     return {
-      title: "처리하지 못했어",
-      message: errorMessage || "잠시 후 다시 시도해줘.",
+      title: "처리하지 못했습니다",
+      message: errorMessage || "잠시 후 다시 시도해 주세요.",
     };
   }
 
@@ -184,8 +184,8 @@ export function TrackerApp() {
     if (!trimmedEmail) {
       setAuthFeedback({
         status: "error",
-        title: "이메일을 입력해줘",
-        message: "인증 메일을 받을 주소가 필요해.",
+        title: "이메일을 입력해 주세요",
+        message: "인증 메일을 받을 주소가 필요합니다.",
       });
       return;
     }
@@ -194,7 +194,7 @@ export function TrackerApp() {
       setAuthFeedback({
         status: "error",
         title: "비밀번호가 너무 짧아",
-        message: "8자 이상으로 입력해줘.",
+        message: "8자 이상으로 입력해 주세요.",
       });
       return;
     }
@@ -202,7 +202,7 @@ export function TrackerApp() {
     setAuthFeedback({
       status: "loading",
       title: authMode === "signin" ? "로그인 중" : "인증 메일 보내는 중",
-      message: "잠깐만 기다려줘.",
+      message: "잠시만 기다려 주세요.",
     });
 
     const action =
@@ -231,8 +231,8 @@ export function TrackerApp() {
       if (data.session) {
         setAuthFeedback({
           status: "signedIn",
-          title: "가입하고 로그인했어",
-          message: "바로 오늘 기록을 남길 수 있어.",
+          title: "가입과 로그인이 완료되었습니다",
+          message: "바로 오늘 기록을 남길 수 있습니다.",
         });
         return;
       }
@@ -241,7 +241,7 @@ export function TrackerApp() {
         setAuthFeedback({
           status: "error",
           title: "이미 가입된 이메일일 수 있어",
-          message: "로그인으로 바꿔서 들어가 보자.",
+          message: "로그인으로 전환해 다시 시도해 주세요.",
         });
         return;
       }
@@ -249,16 +249,16 @@ export function TrackerApp() {
       setPendingSignupEmail(trimmedEmail);
       setAuthFeedback({
         status: "sent",
-        title: "인증 메일을 보냈어",
-        message: "메일함에서 인증 링크를 누른 뒤 로그인하면 돼.",
+        title: "인증 메일을 보냈습니다",
+        message: "메일함에서 인증 링크를 누른 뒤 로그인해 주세요.",
       });
       return;
     }
 
     setAuthFeedback({
       status: "signedIn",
-      title: "로그인했어",
-      message: "오늘 기록을 남겨보자.",
+      title: "로그인되었습니다",
+      message: "오늘 기록을 남겨보세요.",
     });
   }
 
@@ -269,8 +269,8 @@ export function TrackerApp() {
     if (!targetEmail) {
       setAuthFeedback({
         status: "error",
-        title: "이메일을 입력해줘",
-        message: "다시 보낼 주소가 필요해.",
+        title: "이메일을 입력해 주세요",
+        message: "다시 보낼 주소가 필요합니다.",
       });
       return;
     }
@@ -278,7 +278,7 @@ export function TrackerApp() {
     setAuthFeedback({
       status: "loading",
       title: "메일 다시 보내는 중",
-      message: "잠깐만 기다려줘.",
+      message: "잠시만 기다려 주세요.",
     });
 
     const { error } = await supabase.auth.resend({
@@ -302,8 +302,8 @@ export function TrackerApp() {
     setPendingSignupEmail(targetEmail);
     setAuthFeedback({
       status: "sent",
-      title: "인증 메일을 다시 보냈어",
-      message: "스팸함이나 프로모션함도 같이 확인해줘.",
+      title: "인증 메일을 다시 보냈습니다",
+      message: "스팸함이나 프로모션함도 함께 확인해 주세요.",
     });
   }
 
@@ -344,7 +344,7 @@ export function TrackerApp() {
     setRecords(nextRecords);
     if (!supabase) window.localStorage.setItem(demoStorageKey, JSON.stringify(nextRecords));
     setDraft(prepared);
-    setStatus(prepared.meals.praise || "저장했어");
+    setStatus(prepared.meals.praise || "저장되었습니다");
   }
 
   if (loading) {
@@ -584,11 +584,11 @@ function AuthPanel({
       <div className="grid gap-3 bg-slate-50 p-5 text-sm text-slate-600 sm:p-6">
         <div className="flex gap-3">
           <Clock className="mt-0.5 shrink-0 text-slate-400" size={17} />
-          <p>인증 메일은 보통 1분 안에 도착해요. 안 보이면 스팸함과 프로모션함도 확인해줘.</p>
+          <p>인증 메일은 보통 1분 안에 도착합니다. 보이지 않으면 스팸함과 프로모션함도 확인해 주세요.</p>
         </div>
         <div className="flex gap-3">
           <AlertCircle className="mt-0.5 shrink-0 text-slate-400" size={17} />
-          <p>계속 안 오면 이메일 주소 오타를 확인하고, 잠시 후 다시 보내기를 눌러줘.</p>
+          <p>계속 오지 않으면 이메일 주소 오타를 확인하고, 잠시 후 다시 보내기를 눌러 주세요.</p>
         </div>
       </div>
     </motion.div>
@@ -837,7 +837,7 @@ function TodayForm({
             animate={{ opacity: 1, y: 0 }}
             className="flex items-center justify-between rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
           >
-            <span className="font-semibold">{draft.meals.praise || "기록한 건 좋았어"}</span>
+            <span className="font-semibold">{draft.meals.praise || "기록 습관은 아주 좋아요"}</span>
             <span>{draft.meals.score}점</span>
           </motion.div>
         </div>
@@ -1355,7 +1355,7 @@ function SidePanel({
           </span>
           <div>
             <p className="text-sm text-white/60">오늘 피드백</p>
-            <h2 className="text-lg font-bold">{status || draft.meals.praise || "기록해보자"}</h2>
+            <h2 className="text-lg font-bold">{status || draft.meals.praise || "기록부터 한 걸음 시작해 보아요"}</h2>
           </div>
         </div>
         <div className="grid grid-cols-3 gap-2">

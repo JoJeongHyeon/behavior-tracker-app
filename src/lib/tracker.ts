@@ -164,11 +164,11 @@ export function calculateMealScore(items: Record<MealKey, MealEntry>, done: bool
   if (noLateNightSnack) score += 3;
   if (noSnack && noLateNightSnack) score += 2;
 
-  let praise = "기록한 건 좋았어";
-  if (noSnack && noLateNightSnack) praise = "계속 그렇게 가보자";
-  else if (!noSnack && noLateNightSnack) praise = "야식은 잘 넘겼어";
-  else if (noSnack && !noLateNightSnack) praise = "간식은 잘 참았어";
-  else if (recordedMainMeals === 0) praise = "이 정도면 충분해";
+  let praise = "기록 습관은 아주 좋아요";
+  if (noSnack && noLateNightSnack) praise = "좋은 흐름이에요";
+  else if (!noSnack && noLateNightSnack) praise = "야식을 잘 넘기셨어요";
+  else if (noSnack && !noLateNightSnack) praise = "간식을 잘 참으셨어요";
+  else if (recordedMainMeals === 0) praise = "기록부터 한 걸음 시작해 보아요";
 
   return { score, praise };
 }
