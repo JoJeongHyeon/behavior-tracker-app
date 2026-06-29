@@ -4,16 +4,21 @@ import { AnimatePresence, motion } from "motion/react";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import {
   Activity,
+  AlertCircle,
   BarChart3,
   BookOpen,
   CalendarDays,
   Check,
+  CheckCircle2,
+  Clock,
   Dumbbell,
   ListChecks,
   LogIn,
   LogOut,
+  Mail,
   PenLine,
   Plus,
+  RefreshCw,
   Save,
   Sparkles,
   Trash2,
@@ -35,6 +40,12 @@ import {
 
 type TabKey = "today" | "records" | "summary";
 type Supabase = SupabaseClient;
+type AuthStatus = "idle" | "loading" | "sent" | "signedIn" | "error";
+type AuthFeedback = {
+  status: AuthStatus;
+  title: string;
+  message: string;
+};
 
 const demoStorageKey = "behavior-tracker-demo-records";
 const accentColors = {
@@ -54,7 +65,12 @@ export function TrackerApp() {
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [authMessage, setAuthMessage] = useState("");
+  const [authFeedback, setAuthFeedback] = useState<AuthFeedback>({
+    status: "idle",
+    title: "",
+    message: "",
+  });
+  const [pendingSignupEmail, setPendingSignupEmail] = useState("");
   const [records, setRecords] = useState<DailyRecord[]>(() => {
     if (typeof window === "undefined" || !demoMode) return [];
     const stored = window.localStorage.getItem(demoStorageKey);
@@ -118,23 +134,177 @@ export function TrackerApp() {
     setDraft((current) => normalizeRecord(updater(current)));
   }
 
+  function getAuthRedirectUrl() {
+    if (typeof window === "undefined") return undefined;
+    return window.location.origin;
+  }
+
+  function toKoreanAuthMessage(errorMessage: string) {
+    const lower = errorMessage.toLowerCase();
+
+    if (lower.includes("email not confirmed")) {
+      return {
+        title: "메일 인증이 아직 안 됐어",
+        message: "받은 메일함에서 인증 링크를 누른 뒤 다시 로그인해줘.",
+      };
+    }
+
+    if (lower.includes("invalid login credentials")) {
+      return {
+        title: "이메일이나 비밀번호가 맞지 않아",
+        message: "오타가 없는지 보고 다시 시도해줘.",
+      };
+    }
+
+    if (lower.includes("rate limit") || lower.includes("too many")) {
+      return {
+        title: "잠깐 쉬었다가 다시 해보자",
+        message: "메일 요청이 너무 빠르게 반복됐을 수 있어. 1분 뒤 다시 시도해줘.",
+      };
+    }
+
+    if (lower.includes("already registered") || lower.includes("already exists")) {
+      return {
+        title: "이미 가입된 이메일일 수 있어",
+        message: "로그인으로 바꿔서 들어가 보자.",
+      };
+    }
+
+    return {
+      title: "처리하지 못했어",
+      message: errorMessage || "잠시 후 다시 시도해줘.",
+    };
+  }
+
   async function handleAuthSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!supabase) return;
-    setAuthMessage("");
+    const trimmedEmail = email.trim();
 
-    const action =
-      authMode === "signin"
-        ? supabase.auth.signInWithPassword({ email, password })
-        : supabase.auth.signUp({ email, password });
-
-    const { error } = await action;
-    if (error) {
-      setAuthMessage(error.message);
+    if (!trimmedEmail) {
+      setAuthFeedback({
+        status: "error",
+        title: "이메일을 입력해줘",
+        message: "인증 메일을 받을 주소가 필요해.",
+      });
       return;
     }
 
-    setAuthMessage(authMode === "signin" ? "로그인했어요" : "가입 메일을 확인해줘");
+    if (password.length < 8) {
+      setAuthFeedback({
+        status: "error",
+        title: "비밀번호가 너무 짧아",
+        message: "8자 이상으로 입력해줘.",
+      });
+      return;
+    }
+
+    setAuthFeedback({
+      status: "loading",
+      title: authMode === "signin" ? "로그인 중" : "인증 메일 보내는 중",
+      message: "잠깐만 기다려줘.",
+    });
+
+    const action =
+      authMode === "signin"
+        ? supabase.auth.signInWithPassword({ email: trimmedEmail, password })
+        : supabase.auth.signUp({
+            email: trimmedEmail,
+            password,
+            options: {
+              emailRedirectTo: getAuthRedirectUrl(),
+            },
+          });
+
+    const { data, error } = await action;
+    if (error) {
+      const mapped = toKoreanAuthMessage(error.message);
+      setAuthFeedback({
+        status: "error",
+        title: mapped.title,
+        message: mapped.message,
+      });
+      return;
+    }
+
+    if (authMode === "signup") {
+      if (data.session) {
+        setAuthFeedback({
+          status: "signedIn",
+          title: "가입하고 로그인했어",
+          message: "바로 오늘 기록을 남길 수 있어.",
+        });
+        return;
+      }
+
+      if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+        setAuthFeedback({
+          status: "error",
+          title: "이미 가입된 이메일일 수 있어",
+          message: "로그인으로 바꿔서 들어가 보자.",
+        });
+        return;
+      }
+
+      setPendingSignupEmail(trimmedEmail);
+      setAuthFeedback({
+        status: "sent",
+        title: "인증 메일을 보냈어",
+        message: "메일함에서 인증 링크를 누른 뒤 로그인하면 돼.",
+      });
+      return;
+    }
+
+    setAuthFeedback({
+      status: "signedIn",
+      title: "로그인했어",
+      message: "오늘 기록을 남겨보자.",
+    });
+  }
+
+  async function handleResendSignupEmail() {
+    if (!supabase) return;
+    const targetEmail = pendingSignupEmail || email.trim();
+
+    if (!targetEmail) {
+      setAuthFeedback({
+        status: "error",
+        title: "이메일을 입력해줘",
+        message: "다시 보낼 주소가 필요해.",
+      });
+      return;
+    }
+
+    setAuthFeedback({
+      status: "loading",
+      title: "메일 다시 보내는 중",
+      message: "잠깐만 기다려줘.",
+    });
+
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email: targetEmail,
+      options: {
+        emailRedirectTo: getAuthRedirectUrl(),
+      },
+    });
+
+    if (error) {
+      const mapped = toKoreanAuthMessage(error.message);
+      setAuthFeedback({
+        status: "error",
+        title: mapped.title,
+        message: mapped.message,
+      });
+      return;
+    }
+
+    setPendingSignupEmail(targetEmail);
+    setAuthFeedback({
+      status: "sent",
+      title: "인증 메일을 다시 보냈어",
+      message: "스팸함이나 프로모션함도 같이 확인해줘.",
+    });
   }
 
   async function handleSignOut() {
@@ -237,11 +407,13 @@ export function TrackerApp() {
               authMode={authMode}
               email={email}
               password={password}
-              message={authMessage}
+              feedback={authFeedback}
+              pendingEmail={pendingSignupEmail}
               onModeChange={setAuthMode}
               onEmailChange={setEmail}
               onPasswordChange={setPassword}
               onSubmit={handleAuthSubmit}
+              onResend={handleResendSignupEmail}
             />
           ) : (
             <div className="space-y-4">
@@ -309,68 +481,188 @@ function AuthPanel({
   authMode,
   email,
   password,
-  message,
+  feedback,
+  pendingEmail,
   onModeChange,
   onEmailChange,
   onPasswordChange,
   onSubmit,
+  onResend,
 }: {
   authMode: "signin" | "signup";
   email: string;
   password: string;
-  message: string;
+  feedback: AuthFeedback;
+  pendingEmail: string;
   onModeChange: (mode: "signin" | "signup") => void;
   onEmailChange: (value: string) => void;
   onPasswordChange: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onResend: () => void;
 }) {
+  const isLoading = feedback.status === "loading";
+  const isSignup = authMode === "signup";
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-7"
+      className="overflow-hidden rounded-[28px] bg-white shadow-sm ring-1 ring-slate-200"
     >
-      <div className="mb-6 flex items-center gap-3">
-        <div className="grid size-11 place-items-center rounded-2xl bg-blue-50 text-blue-700">
-          <LogIn size={22} />
+      <div className="border-b border-slate-100 p-5 sm:p-7">
+        <div className="mb-6 flex items-center gap-3">
+          <motion.div
+            animate={isLoading ? { scale: [1, 1.05, 1] } : { scale: 1 }}
+            transition={{ duration: 0.8, repeat: isLoading ? Infinity : 0 }}
+            className="grid size-11 place-items-center rounded-2xl bg-blue-50 text-blue-700"
+          >
+            {isSignup ? <Mail size={22} /> : <LogIn size={22} />}
+          </motion.div>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight">
+              {isSignup ? "회원가입" : "로그인"}
+            </h1>
+            <p className="text-sm text-slate-500">
+              {isSignup ? "메일 인증 후 기록을 저장할 수 있어요" : "모바일과 PC 기록을 같이 봐요"}
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-xl font-bold tracking-tight">로그인</h1>
-          <p className="text-sm text-slate-500">모바일과 PC 기록을 같이 봐요</p>
+
+        <div className="mb-4 grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1">
+          <SegmentButton active={authMode === "signin"} onClick={() => onModeChange("signin")}>
+            로그인
+          </SegmentButton>
+          <SegmentButton active={authMode === "signup"} onClick={() => onModeChange("signup")}>
+            가입
+          </SegmentButton>
+        </div>
+
+        <form onSubmit={onSubmit} className="space-y-3">
+          <TextInput
+            label="이메일"
+            type="email"
+            value={email}
+            onChange={onEmailChange}
+            placeholder="you@example.com"
+          />
+          <TextInput
+            label="비밀번호"
+            type="password"
+            value={password}
+            onChange={onPasswordChange}
+            placeholder="8자 이상"
+          />
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            disabled={isLoading}
+            className="mt-2 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+          >
+            {isLoading ? (
+              <RefreshCw className="animate-spin" size={18} />
+            ) : isSignup ? (
+              <Mail size={18} />
+            ) : (
+              <LogIn size={18} />
+            )}
+            {isLoading ? "처리 중" : authMode === "signin" ? "로그인하기" : "인증 메일 받기"}
+          </motion.button>
+        </form>
+      </div>
+
+      <AnimatePresence mode="wait">
+        {feedback.status !== "idle" && (
+          <AuthFeedbackPanel
+            key={`${feedback.status}-${feedback.title}`}
+            feedback={feedback}
+            email={pendingEmail || email}
+            onResend={onResend}
+            onSwitchToSignin={() => onModeChange("signin")}
+          />
+        )}
+      </AnimatePresence>
+
+      <div className="grid gap-3 bg-slate-50 p-5 text-sm text-slate-600 sm:p-6">
+        <div className="flex gap-3">
+          <Clock className="mt-0.5 shrink-0 text-slate-400" size={17} />
+          <p>인증 메일은 보통 1분 안에 도착해요. 안 보이면 스팸함과 프로모션함도 확인해줘.</p>
+        </div>
+        <div className="flex gap-3">
+          <AlertCircle className="mt-0.5 shrink-0 text-slate-400" size={17} />
+          <p>계속 안 오면 이메일 주소 오타를 확인하고, 잠시 후 다시 보내기를 눌러줘.</p>
         </div>
       </div>
-      <div className="mb-4 grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1">
-        <SegmentButton active={authMode === "signin"} onClick={() => onModeChange("signin")}>
-          로그인
-        </SegmentButton>
-        <SegmentButton active={authMode === "signup"} onClick={() => onModeChange("signup")}>
-          가입
-        </SegmentButton>
-      </div>
-      <form onSubmit={onSubmit} className="space-y-3">
-        <TextInput
-          label="이메일"
-          type="email"
-          value={email}
-          onChange={onEmailChange}
-          placeholder="you@example.com"
-        />
-        <TextInput
-          label="비밀번호"
-          type="password"
-          value={password}
-          onChange={onPasswordChange}
-          placeholder="8자 이상"
-        />
-        <motion.button
-          whileTap={{ scale: 0.98 }}
-          className="mt-2 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+    </motion.div>
+  );
+}
+
+function AuthFeedbackPanel({
+  feedback,
+  email,
+  onResend,
+  onSwitchToSignin,
+}: {
+  feedback: AuthFeedback;
+  email: string;
+  onResend: () => void;
+  onSwitchToSignin: () => void;
+}) {
+  const isSent = feedback.status === "sent";
+  const isError = feedback.status === "error";
+  const isLoading = feedback.status === "loading";
+  const Icon = isSent ? CheckCircle2 : isError ? AlertCircle : isLoading ? RefreshCw : Check;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ duration: 0.22 }}
+      className={`m-5 rounded-3xl p-4 sm:m-6 ${
+        isError
+          ? "bg-red-50 text-red-800 ring-1 ring-red-100"
+          : isSent
+            ? "bg-blue-50 text-blue-900 ring-1 ring-blue-100"
+            : "bg-slate-50 text-slate-800 ring-1 ring-slate-100"
+      }`}
+    >
+      <div className="flex gap-3">
+        <motion.span
+          animate={isLoading ? { rotate: 360 } : { rotate: 0 }}
+          transition={{ duration: 0.9, repeat: isLoading ? Infinity : 0, ease: "linear" }}
+          className="grid size-10 shrink-0 place-items-center rounded-2xl bg-white/80"
         >
-          <LogIn size={18} />
-          {authMode === "signin" ? "로그인하기" : "가입하기"}
-        </motion.button>
-      </form>
-      {message && <p className="mt-4 text-sm font-medium text-blue-700">{message}</p>}
+          <Icon size={20} />
+        </motion.span>
+        <div className="min-w-0">
+          <h2 className="font-bold">{feedback.title}</h2>
+          <p className="mt-1 text-sm leading-6 opacity-85">{feedback.message}</p>
+          {isSent && (
+            <p className="mt-2 truncate rounded-xl bg-white/70 px-3 py-2 text-sm font-semibold">
+              {email}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {isSent && (
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={onResend}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-bold text-blue-800 shadow-sm transition hover:bg-blue-100"
+          >
+            <RefreshCw size={16} />
+            다시 보내기
+          </button>
+          <button
+            type="button"
+            onClick={onSwitchToSignin}
+            className="inline-flex h-11 items-center justify-center rounded-2xl bg-blue-600 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700"
+          >
+            인증 후 로그인
+          </button>
+        </div>
+      )}
     </motion.div>
   );
 }
