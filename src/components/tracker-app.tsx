@@ -48,6 +48,8 @@ type AuthFeedback = {
 };
 
 const demoStorageKey = "behavior-tracker-demo-records";
+const defaultSiteUrl = "https://behavior-tracker-app-khaki.vercel.app";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || defaultSiteUrl;
 const accentColors = {
   weight: "bg-blue-50 text-blue-700 ring-blue-100",
   meals: "bg-emerald-50 text-emerald-700 ring-emerald-100",
@@ -135,8 +137,7 @@ export function TrackerApp() {
   }
 
   function getAuthRedirectUrl() {
-    if (typeof window === "undefined") return undefined;
-    return window.location.origin;
+    return siteUrl;
   }
 
   function toKoreanAuthMessage(errorMessage: string) {
@@ -523,7 +524,7 @@ function AuthPanel({
               {isSignup ? "회원가입" : "로그인"}
             </h1>
             <p className="text-sm text-slate-500">
-              {isSignup ? "메일 인증 후 기록을 저장할 수 있어요" : "모바일과 PC 기록을 같이 봐요"}
+              {isSignup ? "메일 인증 후 실제 웹사이트로 이동합니다" : "모바일과 PC 기록을 같이 봐요"}
             </p>
           </div>
         </div>
@@ -588,7 +589,7 @@ function AuthPanel({
         </div>
         <div className="flex gap-3">
           <AlertCircle className="mt-0.5 shrink-0 text-slate-400" size={17} />
-          <p>계속 오지 않으면 이메일 주소 오타를 확인하고, 잠시 후 다시 보내기를 눌러 주세요.</p>
+          <p>인증 링크를 누르면 실제 웹사이트로 이동합니다. 계속 오지 않으면 이메일 주소 오타를 확인해 주세요.</p>
         </div>
       </div>
     </motion.div>
