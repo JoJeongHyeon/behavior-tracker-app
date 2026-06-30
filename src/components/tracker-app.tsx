@@ -24,6 +24,7 @@ import {
   Trash2,
   Utensils,
   Weight,
+  X,
 } from "lucide-react";
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -41,6 +42,7 @@ import {
 type TabKey = "today" | "records" | "summary";
 type Supabase = SupabaseClient;
 type AuthStatus = "idle" | "loading" | "sent" | "signedIn" | "error";
+type SaveState = "idle" | "saving" | "saved" | "error";
 type AuthFeedback = {
   status: AuthStatus;
   title: string;
@@ -82,6 +84,10 @@ export function TrackerApp() {
   const [draft, setDraft] = useState<DailyRecord>(() => createEmptyRecord());
   const [tab, setTab] = useState<TabKey>("today");
   const [status, setStatus] = useState("");
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [saveToast, setSaveToast] = useState<{ tone: "success" | "error"; message: string } | null>(
+    null,
+  );
   const currentMonth = draft.date.slice(0, 7);
   const summary = useMemo(() => summarizeMonth(records, currentMonth), [records, currentMonth]);
 
@@ -316,6 +322,8 @@ export function TrackerApp() {
   }
 
   async function handleSave() {
+    setSaveState("saving");
+    setSaveToast(null);
     const prepared = normalizeRecord({
       ...draft,
       updatedAt: new Date().toISOString(),
@@ -333,7 +341,11 @@ export function TrackerApp() {
       );
 
       if (error) {
-        setStatus(error.message);
+        setSaveState("error");
+        setStatus("저장하지 못했어요. 다시 시도해 주세요.");
+        setSaveToast({ tone: "error", message: "저장하지 못했어요. 다시 시도해 주세요." });
+        window.setTimeout(() => setSaveState("idle"), 1800);
+        window.setTimeout(() => setSaveToast(null), 2800);
         return;
       }
     }
@@ -345,7 +357,11 @@ export function TrackerApp() {
     setRecords(nextRecords);
     if (!supabase) window.localStorage.setItem(demoStorageKey, JSON.stringify(nextRecords));
     setDraft(prepared);
-    setStatus(prepared.meals.praise || "저장되었습니다");
+    setSaveState("saved");
+    setSaveToast({ tone: "success", message: "오늘 기록을 저장했어요" });
+    setStatus(prepared.meals.praise || "기록을 저장했어요");
+    window.setTimeout(() => setSaveState("idle"), 1800);
+    window.setTimeout(() => setSaveToast(null), 2800);
   }
 
   if (loading) {
@@ -428,7 +444,13 @@ export function TrackerApp() {
                     exit={{ opacity: 0, y: -12 }}
                     transition={{ duration: 0.22 }}
                   >
-                    <TodayForm draft={draft} onDraftChange={updateDraft} onSave={handleSave} />
+                    <TodayForm
+                      draft={draft}
+                      saveState={saveState}
+                      saveToast={saveToast}
+                      onDraftChange={updateDraft}
+                      onSave={handleSave}
+                    />
                   </motion.div>
                 )}
                 {tab === "records" && (
@@ -705,13 +727,26 @@ function Tabs({ active, onChange }: { active: TabKey; onChange: (tab: TabKey) =>
 
 function TodayForm({
   draft,
+  saveState,
+  saveToast,
   onDraftChange,
   onSave,
 }: {
   draft: DailyRecord;
+  saveState: SaveState;
+  saveToast: { tone: "success" | "error"; message: string } | null;
   onDraftChange: (updater: (record: DailyRecord) => DailyRecord) => void;
   onSave: () => void;
 }) {
+  const isSaving = saveState === "saving";
+  const saveLabel = isSaving
+    ? "저장 중이에요"
+    : saveState === "saved"
+      ? "저장됐어요"
+      : saveState === "error"
+        ? "다시 시도해 주세요"
+        : "저장하기";
+
   return (
     <div className="space-y-4">
       <section className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6">
@@ -784,10 +819,10 @@ function TodayForm({
       >
         <div className="space-y-3">
           {mealKeys.map((key) => (
-            <div key={key} className="grid gap-2 rounded-2xl bg-slate-50 p-3 sm:grid-cols-[96px_1fr]">
-              <ToggleLine
+            <div key={key} className="grid gap-3 rounded-2xl bg-slate-50 p-3 sm:grid-cols-[220px_1fr]">
+              <MealChoice
                 label={mealLabels[key]}
-                value={draft.meals.items[key].checked}
+                eaten={draft.meals.items[key].checked}
                 onChange={(checked) =>
                   onDraftChange((record) => ({
                     ...record,
@@ -806,7 +841,7 @@ function TodayForm({
                 }
               />
               <AnimatePresence initial={false}>
-                {draft.meals.items[key].checked && (
+                {draft.meals.items[key].checked ? (
                   <motion.input
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 44 }}
@@ -828,6 +863,16 @@ function TodayForm({
                     className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-slate-400"
                     placeholder={`${mealLabels[key]}에 먹은 음식`}
                   />
+                ) : (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 44 }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.18 }}
+                    className="flex items-center rounded-xl border border-dashed border-slate-200 px-3 text-sm font-medium text-slate-400"
+                  >
+                    안 먹은 것으로 기록됩니다
+                  </motion.div>
                 )}
               </AnimatePresence>
             </div>
@@ -1169,14 +1214,67 @@ function TodayForm({
         </div>
       </section>
 
-      <motion.button
-        whileTap={{ scale: 0.98 }}
-        onClick={onSave}
-        className="sticky bottom-4 z-20 inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 text-base font-bold text-white shadow-xl shadow-slate-300/40 transition hover:bg-slate-800"
-      >
-        <Save size={20} />
-        저장하기
-      </motion.button>
+      <div className="sticky bottom-4 z-20 space-y-3">
+        <AnimatePresence>
+          {saveToast && (
+            <motion.div
+              key={saveToast.message}
+              initial={{ opacity: 0, y: 10, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.98 }}
+              transition={{ duration: 0.22 }}
+              className={`mx-auto flex w-fit max-w-full items-center gap-2 rounded-full px-4 py-2 text-sm font-bold shadow-lg ring-1 ${
+                saveToast.tone === "success"
+                  ? "bg-emerald-50 text-emerald-800 ring-emerald-100"
+                  : "bg-red-50 text-red-800 ring-red-100"
+              }`}
+            >
+              {saveToast.tone === "success" ? (
+                <CheckCircle2 size={17} />
+              ) : (
+                <AlertCircle size={17} />
+              )}
+              {saveToast.message}
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <motion.button
+          whileTap={{ scale: 0.98 }}
+          onClick={onSave}
+          disabled={isSaving}
+          animate={saveState === "saved" ? { scale: [1, 1.015, 1] } : { scale: 1 }}
+          transition={{ duration: 0.28 }}
+          className={`inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl px-5 text-base font-bold text-white shadow-xl shadow-slate-300/40 transition ${
+            saveState === "saved"
+              ? "bg-emerald-600 hover:bg-emerald-600"
+              : saveState === "error"
+                ? "bg-red-600 hover:bg-red-700"
+                : "bg-slate-950 hover:bg-slate-800"
+          } disabled:cursor-not-allowed disabled:bg-slate-500`}
+        >
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.span
+              key={saveState}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.16 }}
+              className="inline-flex items-center gap-2"
+            >
+              {isSaving ? (
+                <RefreshCw className="animate-spin" size={20} />
+              ) : saveState === "saved" ? (
+                <CheckCircle2 size={20} />
+              ) : saveState === "error" ? (
+                <AlertCircle size={20} />
+              ) : (
+                <Save size={20} />
+              )}
+              {saveLabel}
+            </motion.span>
+          </AnimatePresence>
+        </motion.button>
+      </div>
     </div>
   );
 }
@@ -1399,27 +1497,44 @@ function YesNo({ value, onChange }: { value: boolean; onChange: (value: boolean)
   );
 }
 
-function ToggleLine({
+function MealChoice({
   label,
-  value,
+  eaten,
   onChange,
 }: {
   label: string;
-  value: boolean;
+  eaten: boolean;
   onChange: (value: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2">
+    <div className="grid gap-2 sm:grid-cols-[52px_1fr] sm:items-center">
       <span className="text-sm font-bold text-slate-700">{label}</span>
-      <button
-        onClick={() => onChange(!value)}
-        className={`grid size-9 place-items-center rounded-xl transition ${
-          value ? "bg-slate-950 text-white" : "bg-white text-slate-400 ring-1 ring-slate-200"
-        }`}
-        aria-label={`${label} 선택`}
-      >
-        <Check size={16} />
-      </button>
+      <div className="grid grid-cols-2 gap-1 rounded-2xl bg-white p-1 ring-1 ring-slate-200">
+        <button
+          type="button"
+          onClick={() => onChange(true)}
+          className={`inline-flex h-10 items-center justify-center gap-1 rounded-xl text-sm font-bold transition ${
+            eaten ? "bg-slate-950 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50"
+          }`}
+          aria-pressed={eaten}
+          aria-label={`${label} 먹음`}
+        >
+          <Check size={15} />
+          먹음
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(false)}
+          className={`inline-flex h-10 items-center justify-center gap-1 rounded-xl text-sm font-bold transition ${
+            !eaten ? "bg-slate-100 text-slate-950 shadow-sm" : "text-slate-500 hover:bg-slate-50"
+          }`}
+          aria-pressed={!eaten}
+          aria-label={`${label} 안 먹음`}
+        >
+          <X size={15} />
+          안 먹음
+        </button>
+      </div>
     </div>
   );
 }
